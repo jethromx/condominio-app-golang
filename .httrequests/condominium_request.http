@@ -1,0 +1,173 @@
+### Inicio de sesión
+# @name login
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "identity": "user642@example.com",
+  "password": "examplepassword"
+}
+
+
+
+### Obtener información del usuario autenticado
+### Capturar el token de acceso
+@accessToken = {{login.response.body.data.accessToken}}
+@refreshToken = {{login.response.body.data.refreshToken}}
+
+
+### Crear un nuevo Condominium
+# @name CreateCondominium
+POST {{host}}{{endpointCon}}
+content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "name":"cond005",   
+  "address": "123 Example Street",
+  "phone": "1234567890",
+  "email": "example@condominium.com",
+  "zip_code" : "01800"
+}
+
+### Capturar el ID del Condominium creado
+@idCondominium = {{CreateCondominium.response.body.data.id}}
+//@idCondominium =13
+
+### Obtener un Condominium por ID
+GET {{host}}{{endpointCon}}/{{idCondominium}}?preload=true
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+### Obtener todos los Condominiums con paginación
+GET {{host}}{{endpointCon}}?page=1&pageSize=10&preload=true
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+
+
+### Actualizar un Condominium por ID
+PATCH {{host}}{{endpointCon}}/5
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "name": "Condominium Cinco",
+  "address": "456 Updated Street2222",
+  "phone": "2233332222",
+  "email": "updated3222@condominium.com",
+  "zip_code" : "2222222"
+}
+
+### Eliminar un Condominium por ID
+DELETE {{host}}{{endpointCon}}/1
+Authorization: Bearer {{accessToken}}
+
+
+################################################################
+################ BUILDINGS######################################
+
+### Obtener todos los Condominiums con paginación
+GET {{host}}{{endpointCon}}/{{idCondominium}}/buildings?page=1&pageSize=10&preload=true
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+
+
+### Crear un nuevo Building
+# @name CreateBuilding
+POST {{host}}{{endpointCon}}/{{idCondominium}}/buildings
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "name": "Building cuatro",
+    "floors": 10
+}
+
+### Capturar el ID del Building creado  
+
+@idBuilding = {{CreateBuilding.response.body.data.id}}
+
+### Obtener un Building por ID
+GET {{host}}{{endpointCon}}/{{idCondominium}}/buildings/{{idBuilding}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+### Obtener todos los Buildings con paginación
+GET {{host}}{{endpointCon}}/{{idCondominium}}/buildings?page=1&pageSize=10&preload=true
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+### Actualizar un Building por ID
+PATCH {{host}}{{endpointCon}}/{{idCondominium}}/buildings/{{idBuilding}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "name": "Updated Buildingxx",
+  "floors": 22
+}
+
+### Eliminar un Building por ID
+DELETE {{host}}{{endpointCon}}/{{idCondominium}}/buildings/{{idBuilding}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+################################################################
+
+
+##TODO VALIDAR que exista el usuario
+
+### Crear un nuevo Apartment
+# @name CreateApartment
+POST {{host}}{{endpointCon}}/{{idCondominium}}/buildings/477/apartments
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "name": "4474", 
+  "floor": 3,
+  "number": "4447",
+  "residents": [
+    {
+      "id": 4
+      } 
+    ]
+}
+
+
+
+
+### Obtener un Apartment por ID
+@idApartment = {{CreateApartment.response.body.data.id}}
+
+### Obtener un Apartment por ID
+GET {{host}}{{endpointCon}}/{{idCondominium}}/buildings/{{idBuilding}}/apartments/{{idApartment}}?preload=true
+Authorization: Bearer {{accessToken}}
+
+### Obtener todos los Apartments con paginación
+GET {{host}}{{endpointCon}}/{{idCondominium}}/buildings/{{idBuilding}}/apartments?page=1&pageSize=10&preload=true
+Authorization: Bearer {{accessToken}}
+
+### Actualizar un Apartment por ID
+PATCH {{host}}{{endpointCon}}/{{idCondominium}}/buildings/{{idBuilding}}/apartments/{{idApartment}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Updated Apartment",
+  "building_id": {{idBuilding}},
+  "floor": 4,
+  "number": "401",
+  "residents": [
+    {
+      "id": 3
+      } 
+    ]
+}
+
+### Eliminar un Apartment por ID
+DELETE {{host}}{{endpointCon}}/{{idCondominium}}/buildings/{{idBuilding}}/apartments/{{idApartment}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json

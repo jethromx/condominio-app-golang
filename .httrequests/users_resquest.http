@@ -1,0 +1,36 @@
+
+
+### Crear un nuevo User
+POST {{host}}{{endpointUser}}
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "email": "user64@example.com",
+  "username": "exampleuse62r",
+  "password": "examplepassword"
+}
+
+### Obtener un User por ID
+GET {{host}}{{endpointUser}}/1
+Authorization: Bearer {{accessToken}}
+
+### Obtener todos los Users con paginación
+GET {{host}}{{endpointUser}}?page=1&pageSize=10
+Authorization: Bearer {{accessToken}}
+### Actualizar un User por ID
+
+PATCH {{host}}{{endpointUser}}/1
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "email": "updateduser@example.com",
+  "username": "updateduser",
+  "password": "updatedpassword",
+  "resident_id": 1
+}
+
+### Eliminar un User por ID
+DELETE {{host}}{{endpointUser}}/3
+Authorization: Bearer {{accessToken}}

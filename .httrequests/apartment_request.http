@@ -1,0 +1,82 @@
+# @name login
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "identity": "user64@example.com",
+  "password": "examplepassword"
+}
+
+### Obtener información del usuario autenticado
+### Capturar el token de acceso
+@accessToken = {{login.response.body.data.accessToken}}
+@refreshToken = {{login.response.body.data.refreshToken}}
+
+### Obtener todos los Condominiums con paginación
+# @name GetCondominiums
+GET {{host}}{{endpointCon}}?page=1&pageSize=10&preload=true
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+### Crear un nuevo Building
+@idCondominium = {{GetCondominiums.response.body.data.items[0].id}}
+@idBuilding = {{GetCondominiums.response.body.data.items[0].buildings[0].id}}
+
+### Obtener un Building por ID
+GET {{host}}/api/buildings/{{idBuilding}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+
+
+
+### Crear un nuevo Apartment
+# @name CreateApartment
+POST http://localhost:8080/api/apartments
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "name": "303",
+  "building_id": {{idBuilding}},
+  "floor": 3,
+  "number": "303",
+  "residents": [
+    {
+      "id": 3
+      } 
+    ]
+}
+
+### Obtener un Apartment por ID
+@idApartment = {{CreateApartment.response.body.data.id}}
+@idApartment =1
+### Obtener un Apartment por ID
+GET http://localhost:8080/api/apartments/{{idApartment}}?preload=true
+Authorization: Bearer {{accessToken}}
+
+### Obtener todos los Apartments con paginación
+GET http://localhost:8080/api/apartments?page=1&pageSize=10&preload=true
+Authorization: Bearer {{accessToken}}
+
+### Actualizar un Apartment por ID
+PATCH http://localhost:8080/api/apartments/1
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Updated Apartment",
+  "building_id": {{idBuilding}},
+  "floor": 4,
+  "number": "401",
+  "residents": [
+    {
+      "id": 3
+      } 
+    ]
+}
+
+### Eliminar un Apartment por ID
+DELETE http://localhost:8080/api/apartments/1
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json

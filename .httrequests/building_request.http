@@ -1,0 +1,117 @@
+# @name login
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "identity": "user64@example.com",
+  "password": "examplepassword"
+}
+
+### Obtener información del usuario autenticado
+### Capturar el token de acceso
+@accessToken = {{login.response.body.data.accessToken}}
+@refreshToken = {{login.response.body.data.refreshToken}}
+
+### Obtener todos los Condominiums con paginación
+# @name GetCondominiums
+GET {{host}}{{endpointCon}}?page=1&pageSize=10&preload=true
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+### Crear un nuevo Building
+@idCondominium = {{GetCondominiums.response.body.data.items[0].id}}
+
+
+### Crear un nuevo Building
+# @name CreateBuilding
+POST {{host}}/api/buildings
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+    "id_condominium": {{idCondominium}},
+    "name": "Building Exa55mpl438841",
+    "floors": 10
+}
+
+### Capturar el ID del Building creado  
+
+@idBuilding = {{CreateBuilding.response.body.data.id}}
+
+### Obtener un Building por ID
+GET {{host}}/api/buildings/{{idBuilding}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+### Obtener todos los Buildings con paginación
+GET {{host}}/api/buildings?page=1&pageSize=10
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+### Actualizar un Building por ID
+PATCH {{host}}/api/buildings/{{idBuilding}}
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "name": "Updated Building",
+  "floors": 22,
+  "id_condominium": {{idCondominium}}
+
+}
+
+### Eliminar un Building por ID
+DELETE {{host}}/api/buildings/1
+
+
+### 
+GET {{host}}/api/buildings/4/apartments
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+
+### 
+GET {{host}}/api/buildings/4/apartments/1
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+### Crear un nuevo Apartment ## validar que el apartamento no exista en el building
+# @name CreateApartment
+POST http://localhost:8080/api/buildings/444/apartments
+Content-Type: application/json
+Authorization: Bearer {{accessToken}}
+
+{
+  "name": "304344",
+  //"building_id": {{idBuilding}},
+  "floor": 3,
+  "number": "303444",
+  "residents": [
+    {
+      "id": 3
+      } 
+    ]
+}
+
+
+### Actualizar un Apartment por ID
+PATCH http://localhost:8080/api/buildings/5/apartments/5
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json
+
+{
+  "name": "Updated Apartment",
+  //"building_id": {{idBuilding}},
+  "floor": 4,
+  "number": "401",
+  "residents": [
+    {
+      "id": 3
+      } 
+    ]
+}
+
+### Eliminar un Apartment por ID
+DELETE http://localhost:8080/api/apartments/1
+Authorization: Bearer {{accessToken}}
+Content-Type: application/json

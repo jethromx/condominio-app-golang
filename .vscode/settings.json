@@ -1,0 +1,16 @@
+{
+    "rest-client.environmentVariables": {
+        "$shared": {
+            "accessToken":"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InVzZXI2NEBleGFtcGxlLmNvbSIsImV4cCI6MTczODM1MDY4OSwidXNlcl9pZCI6MTYsInVzZXJuYW1lIjoiZXhhbXBsZXVzZTYyciJ9.KKwLD4XKakZHgMLpoKZKP0xaUXHFz9uScg9C4jnKhjg",
+            "schema":"https",
+            "endpointCon" : "/api/condominiums",
+            "endpointUser" : "/api/users"
+        },
+        "mac": {
+            
+            "host" :"http://localhost:8080"            
+           
+            
+        }
+    }
+}

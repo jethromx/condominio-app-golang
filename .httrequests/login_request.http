@@ -1,0 +1,43 @@
+
+
+
+### Registro de un nuevo usuario
+POST {{host}}/api/auth/register
+Content-Type: application/json
+
+{
+  "email": "newuser@example.com",
+  "username": "newuser",
+  "password": "newpassword"
+}
+
+### Inicio de sesión
+# @name login
+POST {{host}}/api/auth/login
+Content-Type: application/json
+
+{
+  "identity": "user64@example.com",
+  "password": "examplepassword"
+}
+
+### Obtener información del usuario autenticado
+### Capturar el token de acceso
+@accessToken = {{login.response.body.data.accessToken}}
+@refreshToken = {{login.response.body.data.refreshToken}}
+
+### Cierre de sesión
+POST {{host}}/api/auth/logout
+Authorization: Bearer {{accessToken}}
+
+### Refrescar token
+# @name refreshtoken
+
+POST {{host}}/api/auth/refresh-token
+Content-Type: application/json
+
+{
+  "refreshToken": "{{refreshToken}}"
+}
+
+
