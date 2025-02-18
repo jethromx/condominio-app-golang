@@ -1,8 +1,6 @@
 package service
 
 import (
-	"errors"
-
 	"com.mx/crud/internal/models"
 	"com.mx/crud/internal/repository"
 	"github.com/gofiber/fiber/v2/log"
@@ -15,9 +13,13 @@ type BuildingService interface {
 	GetAllBuildingsByCondominium(page, pageSize int, id int, preload bool) ([]models.Building, int64, error)
 	UpdateBuilding(building *models.Building) error
 	DeleteBuilding(id uint, idBuilding uint) error
-	ValidateCondominium(condominiumID uint, field string) error
+	_ValidateCondominium(condominiumID uint, field string) error
 	ValidateCondominiumAndBuilding(condominiumID uint, buildingID uint) (*models.Building, error)
 }
+
+const (
+	APARTMENTS = "Apartments"
+)
 
 type buildingService struct {
 	buildingRepo    repository.BuildingRepository
@@ -31,12 +33,10 @@ func NewBuildingService(buildingRepo repository.BuildingRepository, condominiumR
 func (s *buildingService) CreateBuilding(building *models.Building) error {
 
 	if building == nil {
-		log.Debug("Building entity is nil")
-		return errors.New("error input data")
-
+		return models.ErrNilBuilding
 	}
 
-	if err := s.ValidateCondominium(building.CondominiumID, building.Name); err != nil {
+	if err := s._ValidateCondominium(building.CondominiumID, building.Name); err != nil {
 		return err
 	}
 
@@ -44,96 +44,114 @@ func (s *buildingService) CreateBuilding(building *models.Building) error {
 }
 
 func (s *buildingService) GetBuildingByID(id uint) (*models.Building, error) {
-	var building *models.Building
-	return s.buildingRepo.FindByIDWithPreload(building, id, "Apartments")
+	var building = &models.Building{}
+	if err := s.buildingRepo.FindByIDPreload(building, id, APARTMENTS); err != nil {
+		return nil, err
+	}
+	return building, nil
+
 }
 
 func (s *buildingService) GetAllBuildings(page, pageSize int) ([]models.Building, int64, error) {
-	return s.buildingRepo.FindAllWithPreloadRel(page, pageSize, "Apartments")
+	return s.buildingRepo.FindAllWithPreloadRel(page, pageSize, APARTMENTS)
 }
 
 func (s *buildingService) UpdateBuilding(building *models.Building) error {
 	var err error
-	var entityAux *models.Building
+	var entityAux = &models.Building{}
 
-	err = s.ValidateCondominium(building.CondominiumID, building.Name)
+	err = s._ValidateCondominiumV2(building.CondominiumID, building.ID, building.Name)
 	if err != nil {
 		return err
 	}
 
-	entityAux, err = s.buildingRepo.FindByID(entityAux, building.ID)
-	if err != nil {
-		return err
+	if entityAux.ID != 0 && building.ID != entityAux.ID {
+		return models.ErrBuildingAlreadyExists
 	}
 
-	_, err = s.buildingRepo.FindByField(entityAux, "name", building.Name)
-
-	if err != nil {
-		return err
-	}
-
-	if entityAux != nil && building.ID != entityAux.ID {
-		return errors.New("record already exists")
-	}
-
-	building.ID = entityAux.ID
+	//building.ID = entityAux.ID
 	building.CreatedBy = entityAux.CreatedBy
 	return s.buildingRepo.Update(building)
 }
 
 func (s *buildingService) DeleteBuilding(id uint, idBuilding uint) error {
-	var building *models.Building
+	var building = &models.Building{}
+	var err error
 
-	var condominium *models.Condominium
-	condominium, err := s.condominiumRepo.FindByID(condominium, id)
-
-	if err != nil {
-		log.Debug("Error finding condominium by ID ", err)
-		return errors.New("error finding condominium by ID")
-	}
-	if condominium == nil {
-		return errors.New("condominium does not exist")
+	var condominium = &models.Condominium{}
+	if err := s.condominiumRepo.FindID(condominium, id); err != nil {
+		return models.ErrCondominiumNotFound
 	}
 
-	building, err = s.buildingRepo.FindByID(building, idBuilding)
-
-	if err != nil {
-		log.Debug("Error finding building by ID ", err)
-		return errors.New("error finding building by ID")
+	if condominium.ID == 0 {
+		return models.ErrBuildingNotFound
 	}
 
-	if building == nil {
-		log.Debug("Building does not exist")
-		return errors.New("building does not exist")
+	if err = s.buildingRepo.FindID(building, idBuilding); err != nil {
+		return models.ErrBuildingByIdNotFound
+	}
+
+	if building.ID == 0 {
+		return models.ErrBuildingNotFound
 	}
 
 	return s.buildingRepo.Delete(building)
 }
 
-func (s *buildingService) ValidateCondominium(condominiumID uint, field string) error {
-	var condominium *models.Condominium
-	condominium, err := s.condominiumRepo.FindByID(condominium, condominiumID)
+func (s *buildingService) _ValidateCondominiumV2(condominiumID uint, buildingID uint, field string) error {
+	var condominium = &models.Condominium{}
+	var building = &models.Building{}
+	var err error
 
-	if err != nil {
-		log.Debug("Error finding condominium by ID ", err)
-		return errors.New("error finding condominium by ID")
+	if err = s.condominiumRepo.FindID(condominium, condominiumID); err != nil {
+		return models.ErrCondominiumNotFound
 	}
 
-	if condominium == nil {
-		return errors.New("condominium does not exist")
+	if err = s.buildingRepo.FindID(building, buildingID); err != nil {
+		return models.ErrBuildingByIdNotFound
+	}
+
+	if condominium.ID == 0 {
+		return models.ErrCondominiumNotFound
 	} else {
 		building, err := s.buildingRepo.ValidateBuilding(int(condominiumID), field)
 		if err != nil {
-			log.Debug("Error finding building by name", err)
-			return errors.New("error finding building by name")
+			return models.ErrBuildingNameNotFound
 		}
 		if building != nil {
-			log.Debug("Building already exists")
-			return errors.New("in this condominium a building already exists with the same name")
+			if building.ID != buildingID {
+				return models.ErrBuldingSameName
+			} else {
+				return nil
+			}
+
 		}
+	}
 
-		// No existe un condominio con el mismo nombre
+	return nil
 
+}
+
+func (s *buildingService) _ValidateCondominium(condominiumID uint, field string) error {
+	var condominium = &models.Condominium{}
+	var err error
+
+	if err = s.condominiumRepo.FindID(condominium, condominiumID); err != nil {
+		return models.ErrCondominiumNotFound
+	}
+
+	if condominium.ID == 0 {
+		return models.ErrCondominiumNotFound
+	} else {
+		building, err := s.buildingRepo.ValidateBuilding(int(condominiumID), field)
+		if err != nil {
+			log.Debug("no se encontro building con el mismo nombre")
+			return models.ErrBuildingNameNotFound
+		}
+		if building != nil {
+			log.Debug("ya existe un building con el mismo nombre")
+			return models.ErrBuldingSameName
+		}
 	}
 
 	return nil
@@ -144,22 +162,18 @@ func (s *buildingService) ValidateCondominiumAndBuilding(condominiumID uint, bui
 
 	building, err := s.buildingRepo.ValidateBuildingByIDs(int(condominiumID), int(buildingID))
 	if err != nil {
-		log.Debug("Error finding building by name", err)
-		return nil, errors.New("error finding building by name")
+		return nil, models.ErrBuildingByIdNotFound
 	}
-	/*if building != nil {
-		log.Debug("Building already exists")
-		return building, errors.New("in this condominium a building already exists with the same name")
-	}*/
+
 	return building, nil
 
 }
 
 func (s *buildingService) GetAllBuildingsByCondominium(page, pageSize int, id int, preload bool) ([]models.Building, int64, error) {
 	if preload {
-		return s.buildingRepo.FindBuildingsByCondominiumPreload(page, pageSize, id)
+		return s.buildingRepo.FindBuildingsByCondominiumPreload(page, pageSize, id, APARTMENTS)
 	} else {
-		return s.buildingRepo.FindBuildingsByCondominium(page, pageSize, id)
+		return s.buildingRepo.FindBuildingsByCondominiumPreload(page, pageSize, id, EMPTY)
 	}
 
 }

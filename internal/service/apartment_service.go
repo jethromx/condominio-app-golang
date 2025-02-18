@@ -5,6 +5,7 @@ import (
 
 	"com.mx/crud/internal/models"
 	"com.mx/crud/internal/repository"
+	"com.mx/crud/internal/utils"
 	"github.com/gofiber/fiber/v2/log"
 )
 
@@ -12,7 +13,10 @@ type ApartmentService interface {
 	CreateApartment(apartment *models.Apartment) error
 	GetApartmentByID(id uint, params map[string]interface{}) (*models.Apartment, error)
 	GetAllApartments(page, pageSize int, params map[string]interface{}) ([]models.Apartment, int64, error)
+	GetAllApartmentsByCondominium(page, pageSize int, condominiumID uint) ([]models.Apartment, int64, error)
+
 	ValidateApartment(idBuilding int, idCondominium int) (*models.Condominium, error)
+	ValidateResidents(ids []int) error
 	UpdateApartment(apartment *models.Apartment) error
 	DeleteApartment(id uint) error
 }
@@ -21,6 +25,10 @@ type apartmentService struct {
 	apartmentRepo repository.ApartmentRepository
 	buildingRepo  repository.BuildingRepository
 }
+
+var (
+	RESIDENTS = "Residents"
+)
 
 func NewApartmentService(apartmentRepo repository.ApartmentRepository, buildingRepo repository.BuildingRepository) ApartmentService {
 	return &apartmentService{apartmentRepo, buildingRepo}
@@ -31,25 +39,33 @@ func (s *apartmentService) ValidateApartment(idBuilding int, idCondominium int) 
 	var condominium *models.Condominium
 	var err error
 
+	// Validar que el condominio exista y esta relacionado con el edificio
 	condominium, err = s.apartmentRepo.ValidationsApartment(idBuilding, idCondominium)
-	if err != nil {
-		return nil, err
-	}
 
-	if condominium == nil {
-		log.Debug("Building or condominium does not exist")
-		return nil, errors.New("building or condominium does not exist")
-	} else {
-		log.Debug("Building and condominium exist")
-		return condominium, nil
-	}
+	return condominium, err
+
+}
+
+func (s *apartmentService) GetAllApartmentsByCondominium(page, pageSize int, condominiumID uint) ([]models.Apartment, int64, error) {
+
+	return s.apartmentRepo.FindAllByCondominiumID(page, pageSize, "", condominiumID)
+}
+
+func (s *apartmentService) ValidateResidents(ids []int) error {
+
+	var err error
+
+	// Validar que existan los residentes
+	err = s.apartmentRepo.ValidateResidents(ids)
+
+	return err
 
 }
 
 func (s *apartmentService) CreateApartment(apartment *models.Apartment) error {
 	var err error
-	var aux *models.Apartment
-	var auxBuilding *models.Building
+	var aux = &models.Apartment{}
+	var auxBuilding = &models.Building{}
 
 	if apartment == nil {
 		return models.ErrNilApartment
@@ -57,46 +73,40 @@ func (s *apartmentService) CreateApartment(apartment *models.Apartment) error {
 	}
 
 	if apartment.BuildingID != 0 {
-		auxBuilding, err = s.buildingRepo.FindByID(auxBuilding, apartment.BuildingID)
-		if err != nil {
-			log.Debug("Error finding apartment by name", err)
-			return errors.New("error finding building")
+		if err = s.buildingRepo.FindID(auxBuilding, apartment.BuildingID); err != nil {
+			return errors.New(utils.MsgBuildingNotFound)
 		}
 
-		if auxBuilding == nil {
-			return errors.New("building does not exist")
+		if auxBuilding.ID == 0 {
+			return errors.New(utils.MsgBuildingNotExist)
 		}
 	}
 
-	aux, err = s.apartmentRepo.FindByField(aux, "name", apartment.Name)
-
-	// Error al buscar el apartment por nombre
-	if err != nil {
-		log.Debug("Error finding apartment by name", err)
-		return errors.New("error finding apartment")
+	if err = s.apartmentRepo.FindField(aux, NAME, apartment.Name); err != nil {
+		return errors.New(utils.MsgApartmentNotFound)
 	}
 
 	// No existe un condominio con el mismo nombre
-	if aux != nil {
-		return errors.New("apartment already exists")
+	if aux.ID != 0 {
+		return errors.New(utils.MsgApartmentAlreadyExists)
 	}
 
 	return s.apartmentRepo.Create(apartment)
 }
 
 func (s *apartmentService) GetApartmentByID(id uint, params map[string]interface{}) (*models.Apartment, error) {
-	var apartment *models.Apartment
+	var apartment = &models.Apartment{}
 	var err error
-	preload := params["preload"].(bool)
+	preload := params[PRELOAD].(bool)
 
 	if preload {
-		apartment, err = s.apartmentRepo.FindByIDWithPreload(apartment, id, "Residents")
+		err = s.apartmentRepo.FindByIDPreload(apartment, id, RESIDENTS)
 		if err != nil {
 			return nil, err
 		}
 
 	} else {
-		apartment, err = s.apartmentRepo.FindByID(apartment, id)
+		err = s.apartmentRepo.FindID(apartment, id)
 		if err != nil {
 			return nil, err
 		}
@@ -114,27 +124,40 @@ func (s *apartmentService) GetAllApartments(page, pageSize int, params map[strin
 	preload := params["preload"].(bool)
 	buildingId := params["id"].(int)
 
-	if buildingId != 0 {
+	log.Debug(buildingId)
+	log.Debug(preload)
 
-		apartments, totalRecords, err = s.apartmentRepo.FindAllByBuildingID(page, pageSize, "Residents", uint(buildingId))
-		if err != nil {
-			return nil, 0, err
-		}
-		return apartments, totalRecords, nil
-	}
+	if buildingId == 0 {
 
-	if preload {
-		log.Debug("Preloading buildings")
-		apartments, totalRecords, err = s.apartmentRepo.FindAllWithPreloadRel(page, pageSize, "Residents")
-		if err != nil {
-			return nil, 0, err
+		if preload {
+			log.Debug("loading buildings")
+			apartments, totalRecords, err = s.apartmentRepo.FindAllWithPreloadRel(page, pageSize, "Residents")
+			if err != nil {
+				return nil, 0, err
+			}
+		} else {
+			log.Debug("loading buildings without preloading")
+			apartments, totalRecords, err = s.apartmentRepo.FindAllWithPreloadRel(page, pageSize, "")
+			if err != nil {
+				return nil, 0, err
+			}
 		}
+		//return apartments, totalRecords, nil
 	} else {
-		log.Debug("Not preloading buildings")
-		apartments, totalRecords, err = s.apartmentRepo.FindAll(page, pageSize)
-		if err != nil {
-			return nil, 0, err
+		if preload {
+			log.Debug("Preloading buildings")
+			apartments, totalRecords, err = s.apartmentRepo.FindAllByBuildingID(page, pageSize, "Residents", uint(buildingId))
+			if err != nil {
+				return nil, 0, err
+			}
+		} else {
+			log.Debug("Not preloading buildings")
+			apartments, totalRecords, err = s.apartmentRepo.FindAllByBuildingID(page, pageSize, "", uint(buildingId))
+			if err != nil {
+				return nil, 0, err
+			}
 		}
+
 	}
 
 	return apartments, totalRecords, nil
@@ -142,40 +165,41 @@ func (s *apartmentService) GetAllApartments(page, pageSize int, params map[strin
 }
 
 func (s *apartmentService) UpdateApartment(apartment *models.Apartment) error {
-	var apartmentAux *models.Apartment
-	var buildingAux *models.Building
+	var apartmentAux = &models.Apartment{}
+	var buildingAux = &models.Building{}
+
 	var err error
 
-	buildingAux, err = s.buildingRepo.FindByID(buildingAux, apartment.BuildingID)
+	err = s.buildingRepo.FindID(buildingAux, apartment.BuildingID)
 
 	if err != nil {
 		return err
 	}
 
-	if buildingAux == nil {
+	if buildingAux.ID == 0 {
 		return errors.New("building does not exist")
 	}
 
-	apartmentAux, err = s.apartmentRepo.FindByID(apartmentAux, apartment.ID)
+	err = s.apartmentRepo.FindID(apartmentAux, apartment.ID)
 	if err != nil {
 		return err
 	}
 
-	apartmentAux, err = s.apartmentRepo.FindByField(apartmentAux, "name", apartment.Name)
+	err = s.apartmentRepo.FindField(apartmentAux, NAME, apartment.Name)
 	if err != nil {
 		return err
 	}
 
-	if apartmentAux != nil && apartment.ID != apartmentAux.ID {
+	if apartment.ID != apartmentAux.ID {
 		return errors.New("condominium already exists")
 	}
 
-	return s.apartmentRepo.Update(apartment)
+	return s.apartmentRepo.UpdatePreLoad(apartment, "Residents")
 }
 
 func (s *apartmentService) DeleteApartment(id uint) error {
-	var apartment *models.Apartment
-	apartment, err := s.apartmentRepo.FindByID(apartment, id)
+	var apartment = &models.Apartment{}
+	err := s.apartmentRepo.FindID(apartment, id)
 	if err != nil {
 		return err
 	}

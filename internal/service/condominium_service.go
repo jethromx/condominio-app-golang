@@ -1,11 +1,8 @@
 package service
 
 import (
-	"errors"
-
 	"com.mx/crud/internal/models"
 	"com.mx/crud/internal/repository"
-	"github.com/gofiber/fiber/v2/log"
 )
 
 type CondominiumService interface {
@@ -21,6 +18,13 @@ type condominiumService struct {
 	buildingRepo    repository.BuildingRepository
 }
 
+const (
+	NAME      = "name"
+	PRELOAD   = "preload"
+	BUILDINGS = "Buildings"
+	EMPTY     = ""
+)
+
 func NewCondominiumService(condominiumRepo repository.CondominiumRepository, buildingRepo repository.BuildingRepository) CondominiumService {
 	return &condominiumService{condominiumRepo, buildingRepo}
 }
@@ -28,40 +32,39 @@ func NewCondominiumService(condominiumRepo repository.CondominiumRepository, bui
 func (s *condominiumService) CreateCondominium(condominium *models.Condominium) error {
 
 	if condominium == nil {
-
 		return models.ErrNilCondominium
 	}
 
-	aux, err := s.condominiumRepo.FindByField(condominium, "name", condominium.Name)
+	var aux = &models.Condominium{}
+	err := s.condominiumRepo.FindField(aux, NAME, condominium.Name)
 
 	// Existe un condominio con el mismo nombre
 	if err != nil {
-		log.Debug("Error finding condominium by name", err)
-		return errors.New("error input data")
+		return models.ErrCondominiumNotFound
 	}
 
-	// No existe un condominio con el mismo nombre
-	if aux != nil {
-		return errors.New("condominium already exists")
+	// Existe un condominio con el mismo nombre
+	if aux.ID != 0 {
+		return models.ErrCondominiumAlreadyExists
 	}
 
 	return s.condominiumRepo.Create(condominium)
 }
 
 func (s *condominiumService) GetCondominiumByID(id uint, params map[string]interface{}) (*models.Condominium, error) {
-	var condominium *models.Condominium
+	var condominium = &models.Condominium{}
 	var err error
-	preload := params["preload"].(bool)
-	log.Debug("preload: ", preload)
+
+	preload := params[PRELOAD].(bool)
 
 	if preload {
-		condominium, err = s.condominiumRepo.FindByIDWithPreload(condominium, id, "Buildings")
+		err = s.condominiumRepo.FindByIDPreload(condominium, id, BUILDINGS)
 		if err != nil {
 			return nil, err
 		}
 
 	} else {
-		condominium, err = s.condominiumRepo.FindByID(condominium, id)
+		err = s.condominiumRepo.FindByIDPreload(condominium, id, EMPTY)
 		if err != nil {
 			return nil, err
 		}
@@ -71,22 +74,19 @@ func (s *condominiumService) GetCondominiumByID(id uint, params map[string]inter
 }
 
 func (s *condominiumService) GetAllCondominiums(page, pageSize int, params map[string]interface{}) ([]models.Condominium, int64, error) {
-	log.Debug("Getting all condominiums")
 
 	var condominiums []models.Condominium
 	var totalRecords int64
 	var err error
-	preload := params["preload"].(bool)
+	preload := params[PRELOAD].(bool)
 
 	if preload {
-		log.Debug("Preloading buildings")
-		condominiums, totalRecords, err = s.condominiumRepo.FindAllWithPreload(page, pageSize)
+		condominiums, totalRecords, err = s.condominiumRepo.FindAllWithPreloadRel(page, pageSize, BUILDINGS)
 		if err != nil {
 			return nil, 0, err
 		}
 	} else {
-		log.Debug("Not preloading buildings")
-		condominiums, totalRecords, err = s.condominiumRepo.FindAll(page, pageSize)
+		condominiums, totalRecords, err = s.condominiumRepo.FindAllWithPreloadRel(page, pageSize, EMPTY)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -96,36 +96,42 @@ func (s *condominiumService) GetAllCondominiums(page, pageSize int, params map[s
 }
 
 func (s *condominiumService) UpdateCondominium(condominium *models.Condominium) error {
-	var err error
-	var condominiumAux *models.Condominium
 
-	condominiumAux, err = s.condominiumRepo.FindByField(condominiumAux, "name", condominium.Name)
-	if err != nil {
-		return errors.New("erro to find condominium by name")
+	if err := s._ValidateCondominium(condominium); err != nil {
+		return err
 	}
 
-	if condominiumAux != nil && condominium.ID != condominiumAux.ID {
-		return errors.New("condominium already exists")
-	}
-
-	condominiumAux, err = s.condominiumRepo.FindByID(condominiumAux, condominium.ID)
-	if err != nil {
-		return errors.New("error to find condominium by id")
-	}
-
-	if condominiumAux == nil {
-		return errors.New("condominium not found")
-	}
-
-	condominium.CreatedBy = condominiumAux.CreatedBy
 	return s.condominiumRepo.Update(condominium)
 }
 
 func (s *condominiumService) DeleteCondominium(id uint) error {
-	var condominium *models.Condominium
-	condominium, err := s.condominiumRepo.FindByID(condominium, id)
-	if err != nil {
+	var condominium = &models.Condominium{}
+	if err := s.condominiumRepo.FindID(condominium, id); err != nil {
 		return err
 	}
+
 	return s.condominiumRepo.Delete(condominium)
+}
+
+func (s *condominiumService) _ValidateCondominium(condominium *models.Condominium) error {
+	var condominiumAux = &models.Condominium{}
+	var err error
+
+	if err = s.condominiumRepo.FindField(condominiumAux, NAME, condominium.Name); err != nil {
+		return models.ErrCondominiumNotFound
+	}
+
+	if condominiumAux.ID != 0 && condominium.ID != condominiumAux.ID {
+		return models.ErrCondominiumAlreadyExists
+	}
+
+	if err = s.condominiumRepo.FindID(condominiumAux, condominium.ID); err != nil {
+		return models.ErrCondominimByIdNotFound
+	}
+
+	if condominiumAux.ID == 0 {
+		return models.ErrCondominiumNotFound
+	}
+
+	return nil
 }

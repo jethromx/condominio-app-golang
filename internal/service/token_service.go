@@ -35,15 +35,15 @@ func (s *tokenService) IsTokenValid(tipo string, token string) (*models.Token, e
 		}
 	}
 
-	var tokenEntity *models.Token
+	var tokenEntity = &models.Token{}
 
-	tokenEntity, err := s.tokenRepo.FindByField(tokenEntity, tipo, token)
+	err := s.tokenRepo.FindField(tokenEntity, tipo, token)
 
 	if err != nil {
 		return nil, err
 	}
 
-	if tokenEntity == nil {
+	if tokenEntity.ID == 0 {
 		return nil, nil
 	}
 	return tokenEntity, nil
