@@ -64,13 +64,12 @@ func ConnectDatabase() {
 
 // buildDSN construye el Data Source Name (DSN) para la conexión a la base de datos
 func buildDSN(settings *config.ServerSettings) string {
-	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=%s TimeZone=%s",
+	return fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%d sslmode=require TimeZone=%s",
 		settings.Database.Host,
 		settings.Database.User,
 		settings.Database.Password,
 		settings.Database.DatabaseName,
 		settings.Database.Port,
-		settings.Database.SslMode,
 		settings.Database.TimeZone)
 }
 
