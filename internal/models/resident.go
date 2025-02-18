@@ -1,7 +1,13 @@
 package models
 
 import (
+	"errors"
+
 	"gorm.io/gorm"
+)
+
+var (
+	ErrResidentsNotFound = errors.New("residents not found")
 )
 
 // Resident define la estructura de un residente

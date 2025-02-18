@@ -7,12 +7,12 @@ import (
 )
 
 type DatabaseSettings struct {
-	Host         string `json:"DB_HOST" default:"localhost"`
+	Host         string `json:"DB_HOST" default:"ep-raspy-meadow-a5vxz1gk-pooler.us-east-2.aws.neon.tech"`
 	Port         int    `json:"DB_PORT" default:"5432"`
-	User         string `json:"DB_USER" default:"user1"`
-	Password     string `json:"DB_PASSWORD" default:"password"`
-	DatabaseName string `json:"DB_DATABASE_NAME" default:"crud"`
-	SslMode      string `json:"DB_SSLMODE" default:"disable"`
+	User         string `json:"DB_USER" default:"coffee-core_owner"`
+	Password     string `json:"DB_PASSWORD" default:"hMfRwFSUI5A4"`
+	DatabaseName string `json:"DB_DATABASE_NAME" default:"coffee-core"`
+	SslMode      string `json:"DB_SSLMODE" default:"enabled"`
 	TimeZone     string `json:"DB_TIMEZONE" default:"America/Mexico_City"`
 }
 
@@ -61,11 +61,11 @@ func GetServerSettings() *ServerSettings {
 			RuntimeMode: runtimeMode,
 
 			Database: DatabaseSettings{
-				Host:         getEnv("DB_HOST", "localhost"),
+				Host:         getEnv("DB_HOST", "ep-raspy-meadow-a5vxz1gk-pooler.us-east-2.aws.neon.tech"),
 				Port:         getEnvAsInt("DB_PORT", 5432),
-				User:         getEnv("DB_USER", "user1"),
-				Password:     getEnv("DB_PASSWORD", "password"),
-				DatabaseName: getEnv("DB_DATABASE", "crud"),
+				User:         getEnv("DB_USER", "coffee-core_owner"),
+				Password:     getEnv("DB_PASSWORD", "hMfRwFSUI5A4"),
+				DatabaseName: getEnv("DB_DATABASE", "coffee-core"),
 				SslMode:      getEnv("DB_SSLMODE", "disable"),
 				TimeZone:     getEnv("DB_TIMEZONE", "America/Mexico_City"),
 			},

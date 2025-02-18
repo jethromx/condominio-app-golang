@@ -9,6 +9,8 @@ import (
 var (
 	ErrNilCondominium           = errors.New("condominium is nil")
 	ErrCondominiumAlreadyExists = errors.New("condominium already exists")
+	ErrCondominiumNotFound      = errors.New("condominium not found")
+	ErrCondominimByIdNotFound   = errors.New("condominium by id not found")
 )
 
 // Condominium define la estructura de un condominio

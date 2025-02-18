@@ -9,13 +9,21 @@ import (
 type Repository[T any] interface {
 	Create(entity *T) error
 	Update(entity *T) error
+	UpdatePreLoad(entity *T, preload string) error
 	Delete(entity *T) error
 	FindAll(page, pageSize int) ([]T, int64, error)
-	FindByID(entity *T, id uint) (*T, error)
-	FindByField(entity *T, field, value string) (*T, error)
+
+	FindID(entity *T, id uint) error
+	FindField(entity *T, field, value string) error
+	FindByIDPreload(entity *T, id uint, preload string) error
+
 	FindAllWithPreloadRel(page, pageSize int, preload string) ([]T, int64, error)
-	FindByIDWithPreload(entity *T, id uint, preload string) (*T, error)
 }
+
+var (
+	ErrorEntittyNoyFound = errors.New("records not found")
+	ErrorCountRecords    = errors.New("error to count records")
+)
 
 type BaseRepository[T any] struct {
 	DB *gorm.DB
@@ -33,6 +41,10 @@ func (r *BaseRepository[T]) Update(entity *T) error {
 	return r.DB.Save(entity).Error
 }
 
+func (r *BaseRepository[T]) UpdatePreLoad(entity *T, preload string) error {
+	return r.DB.Save(entity).Preload(preload).Error
+}
+
 func (r *BaseRepository[T]) Delete(entity *T) error {
 	return r.DB.Delete(entity).Error
 }
@@ -46,11 +58,11 @@ func (r *BaseRepository[T]) FindAll(page, pageSize int) ([]T, int64, error) {
 		if err == gorm.ErrRecordNotFound {
 			return nil, 0, err
 		}
-		return nil, 0, errors.New("error to find all entities")
+		return nil, 0, ErrorEntittyNoyFound
 	}
 
 	if err := r.DB.Model(&entities).Count(&totalRecords).Error; err != nil {
-		return nil, 0, errors.New("error to count records")
+		return nil, 0, ErrorCountRecords
 	}
 
 	return entities, totalRecords, nil
@@ -60,50 +72,67 @@ func (r *BaseRepository[T]) FindAllWithPreloadRel(page, pageSize int, preload st
 	var entities []T
 	var totalRecords int64
 
-	offset := (page - 1) * pageSize
-	if err := r.DB.Offset(offset).Limit(pageSize).Preload(preload).Find(&entities).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, 0, err
+	if len(preload) > 0 {
+		offset := (page - 1) * pageSize
+
+		if err := r.DB.Offset(offset).Limit(pageSize).Preload(preload).Find(&entities).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return nil, 0, err
+			}
+			return nil, 0, ErrorEntittyNoyFound
 		}
-		return nil, 0, errors.New("error to find all entities")
-	}
 
-	if err := r.DB.Model(&entities).Count(&totalRecords).Error; err != nil {
-		return nil, 0, errors.New("error to count records")
-	}
+		if err := r.DB.Model(&entities).Count(&totalRecords).Error; err != nil {
+			return nil, 0, ErrorCountRecords
+		}
 
-	return entities, totalRecords, nil
+		return entities, totalRecords, nil
+	} else {
+		return r.FindAll(page, pageSize)
+
+	}
 }
 
-func (r *BaseRepository[T]) FindByID(entity *T, id uint) (*T, error) {
+func (r *BaseRepository[T]) FindID(entity *T, id uint) error {
 
 	if err := r.DB.Find(&entity, id).First(&entity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, err
+			return err
 		}
-		return nil, errors.New("error to find entity by id")
+		return ErrorEntittyNoyFound
 	}
-	return entity, nil
+	return nil
 }
 
-func (r *BaseRepository[T]) FindByIDWithPreload(entity *T, id uint, preload string) (*T, error) {
+func (r *BaseRepository[T]) FindByIDPreload(entity *T, id uint, preload string) error {
 
-	if err := r.DB.Find(&entity, id).Preload(preload).First(&entity).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return nil, err
+	if len(preload) > 0 {
+		if err := r.DB.Find(&entity, id).Preload(preload).First(&entity).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return err
+			}
+			return ErrorEntittyNoyFound
 		}
-		return nil, errors.New("error to find entity by id")
+		return nil
+	} else {
+		if err := r.DB.Find(&entity, id).First(&entity).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return err
+			}
+			return ErrorEntittyNoyFound
+		}
+		return nil
 	}
-	return entity, nil
+
 }
 
-func (r *BaseRepository[T]) FindByField(entity *T, field, value string) (*T, error) {
+func (r *BaseRepository[T]) FindField(entity *T, field, value string) error {
 
 	if err := r.DB.Where(field+" = ?", value).First(&entity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil, nil
+			return nil
 		}
-		return nil, err
+		return err
 	}
-	return entity, nil
+	return nil
 }

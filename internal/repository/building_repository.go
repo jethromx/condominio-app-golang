@@ -11,7 +11,7 @@ type BuildingRepository interface {
 	Repository[models.Building]
 	FindBuildings(entities []models.Building, ID int64) ([]models.Building, error)
 	FindBuildingsByCondominium(page, pageSize int, ID int) ([]models.Building, int64, error)
-	FindBuildingsByCondominiumPreload(page, pageSize int, ID int) ([]models.Building, int64, error)
+	FindBuildingsByCondominiumPreload(page, pageSize int, ID int, preload string) ([]models.Building, int64, error)
 	ValidateBuilding(idCondominuim int, field string) (*models.Building, error)
 	ValidateBuildingByIDs(idCondominuim int, idBuilding int) (*models.Building, error)
 }
@@ -54,13 +54,19 @@ func (r *BaseRepository[T]) FindBuildingsByCondominium(page, pageSize int, ID in
 	return entities, totalRecords, nil
 }
 
-func (r *BaseRepository[T]) FindBuildingsByCondominiumPreload(page, pageSize int, ID int) ([]models.Building, int64, error) {
+func (r *BaseRepository[T]) FindBuildingsByCondominiumPreload(page, pageSize int, ID int, preload string) ([]models.Building, int64, error) {
 	var entities []models.Building
 	var totalRecords int64
 
 	offset := (page - 1) * pageSize
-	if err := r.DB.Offset(offset).Limit(pageSize).Preload("Apartments").Find(&entities, &models.Building{CondominiumID: uint(ID)}).Error; err != nil {
-		return nil, 0, err
+	if len(preload) > 0 {
+		if err := r.DB.Offset(offset).Limit(pageSize).Preload(preload).Find(&entities, &models.Building{CondominiumID: uint(ID)}).Error; err != nil {
+			return nil, 0, err
+		}
+	} else {
+		if err := r.DB.Offset(offset).Limit(pageSize).Find(&entities, &models.Building{CondominiumID: uint(ID)}).Error; err != nil {
+			return nil, 0, err
+		}
 	}
 
 	if err := r.DB.Model(&entities).Where(&models.Building{CondominiumID: uint(ID)}).Count(&totalRecords).Error; err != nil {
@@ -72,6 +78,7 @@ func (r *BaseRepository[T]) FindBuildingsByCondominiumPreload(page, pageSize int
 
 func (r *BaseRepository[T]) ValidateBuilding(idCondominuim int, field string) (*models.Building, error) {
 	var entity models.Building
+
 	if err := r.DB.Where("condominium_id = ? AND name = ?", idCondominuim, field).First(&entity).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			return nil, nil

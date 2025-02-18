@@ -45,7 +45,8 @@ func (s *userService) CreateUser(user *models.User, auditUserID uint) (*models.U
 		return nil, ErrInvalidEmailFormat
 	}
 
-	userAux, err := s.userRepo.FindByField(&models.User{}, "email", user.Email)
+	var userAux *models.User
+	err := s.userRepo.FindField(userAux, "email", user.Email)
 
 	if err != nil {
 		log.Debug("Error finding user by email", err)
@@ -69,7 +70,8 @@ func (s *userService) CreateUser(user *models.User, auditUserID uint) (*models.U
 }
 
 func (s *userService) GetUserByID(id uint) (*models.User, error) {
-	user, err := s.userRepo.FindByID(&models.User{}, id)
+	var user *models.User
+	err := s.userRepo.FindID(user, id)
 
 	if user == nil {
 		log.Debug("User not found")
@@ -109,7 +111,8 @@ func (s *userService) UpdateUser(user *models.User) error {
 }
 
 func (s *userService) DeleteUser(id uint) error {
-	user, err := s.userRepo.FindByID(&models.User{}, id)
+	var user *models.User
+	err := s.userRepo.FindID(user, id)
 	if err != nil {
 		return err
 	}

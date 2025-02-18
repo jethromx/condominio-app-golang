@@ -1,51 +1,108 @@
 package payments
 
 import (
-	"time"
-
 	"com.mx/crud/internal/service"
 	"com.mx/crud/internal/utils"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 )
 
-type PaymentInput struct {
-	Amount     float64   `json:"amount"`
-	Date       time.Time `json:"date"`
-	ResidentID uint      `json:"resident_id"`
-}
+const (
+	AuditUserEMail = "email"
+	ID_CONDOMINIUM = "id"
+	CREATE         = "create"
+	PRELOAD        = "preload"
+	ID_BUILDING    = "idBuilding"
+	ID_APARTMENT   = "idApartment"
+	ID_PAYMENT     = "idPayment"
+	ID_RESIDENT    = "idResident"
+)
 
 // CreatePaymentHandler maneja la creación de nuevos pagos
-func CreatePaymentHandler(paymentService service.PaymentService) fiber.Handler {
+func CreatePaymentHandler(paymentService service.PaymentService, residentService service.ResidentService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		input := new(PaymentInput)
 
-		if err := c.BodyParser(input); err != nil {
-			log.Debug("Error parsing input:", err)
-			return utils.HandleResponse(c, fiber.StatusBadRequest, "Invalid request", err.Error())
+		idCondominium, err := utils.GetParam(c, ID_CONDOMINIUM)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
 		}
 
-		payment, err := paymentService.CreatePayment(input.Amount, input.Date, input.ResidentID)
+		// GET ID FROM URL building
+		idBuilding, err := utils.GetParam(c, ID_BUILDING)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
+		}
+
+		idApartment, err := utils.GetParam(c, ID_APARTMENT)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
+		}
+
+		err = utils.HandlerValidation(c, input)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, err.Error(), nil)
+		}
+
+		// Validate apartment
+		err = residentService.ValidateApartmentSU(idBuilding, idCondominium, idApartment)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, "Error "+err.Error(), nil)
+		}
+		payment := MapPaymentInputToModel(input)
+		err = paymentService.CreatePayment(payment)
 		if err != nil {
 			log.Debug("Error creating payment:", err)
 			return utils.HandleResponse(c, fiber.StatusUnprocessableEntity, "Could not create payment", err.Error())
 		}
 
-		return utils.HandleResponse(c, fiber.StatusOK, "Payment created successfully", payment)
+		output := MapPaymentToOutput(payment)
+
+		return utils.HandleResponse(c, fiber.StatusOK, "Payment created successfully", output)
 	}
 }
 
 // GetPaymentByIDHandler maneja la obtención de un pago por ID
-func GetPaymentByIDHandler(paymentService service.PaymentService) fiber.Handler {
+func GetPaymentByIDHandler(paymentService service.PaymentService, residentService service.ResidentService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		id, err := c.ParamsInt("id")
+		idCondominium, err := utils.GetParam(c, ID_CONDOMINIUM)
 		if err != nil {
-			return utils.HandleResponse(c, fiber.StatusBadRequest, "Invalid payment ID", err.Error())
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
 		}
 
-		payment, err := paymentService.GetPaymentByID(uint(id))
+		// GET ID FROM URL building
+		idBuilding, err := utils.GetParam(c, ID_BUILDING)
 		if err != nil {
-			log.Debug("Error getting payment:", err)
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
+		}
+
+		idApartment, err := utils.GetParam(c, ID_APARTMENT)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
+		}
+
+		idPayment, err := utils.GetParam(c, ID_PAYMENT)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
+		}
+
+		// Validate apartment
+		err = residentService.ValidateApartmentSU(idBuilding, idCondominium, idApartment)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, "Error "+err.Error(), nil)
+		}
+
+		defaultParams := map[string]interface{}{
+			PRELOAD: false,
+		}
+
+		params, err := utils.GetQueryParams(c, defaultParams)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusInternalServerError, utils.MsgErrorGettingsParams, nil)
+		}
+
+		payment, err := paymentService.GetPaymentByID(uint(idPayment), params)
+		if err != nil {
 			return utils.HandleResponse(c, fiber.StatusNotFound, "Payment not found", err.Error())
 		}
 
@@ -56,31 +113,66 @@ func GetPaymentByIDHandler(paymentService service.PaymentService) fiber.Handler 
 // GetAllPaymentsHandler maneja la obtención de todos los pagos
 func GetAllPaymentsHandler(paymentService service.PaymentService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		payments, err := paymentService.GetAllPayments()
+
+		page, pageSize, err := utils.GetPaginationParams(c)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, "Invalid pagination parameters", nil)
+		}
+
+		payments, _, err := paymentService.GetAllPayments(page, pageSize, 1 /*id*/, false)
 		if err != nil {
 			log.Debug("Error getting payments:", err)
 			return utils.HandleResponse(c, fiber.StatusInternalServerError, "Could not get payments", err.Error())
 		}
 
-		return utils.HandleResponse(c, fiber.StatusOK, "Payments retrieved successfully", payments)
+		output := MapPaymentToOutputList(payments)
+
+		return utils.HandleResponse(c, fiber.StatusOK, "Payments retrieved successfully", output)
 	}
 }
 
 // UpdatePaymentHandler maneja la actualización de un pago
-func UpdatePaymentHandler(paymentService service.PaymentService) fiber.Handler {
+func UpdatePaymentHandler(paymentService service.PaymentService, residentService service.ResidentService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		id, err := c.ParamsInt("id")
+		// GET ID FROM URL condominium
+		idCondominium, err := utils.GetParam(c, ID_CONDOMINIUM)
 		if err != nil {
-			return utils.HandleResponse(c, fiber.StatusBadRequest, "Invalid payment ID", err.Error())
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
+		}
+
+		// GET ID FROM URL building
+		idBuilding, err := utils.GetParam(c, ID_BUILDING)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
+		}
+
+		idApartment, err := utils.GetParam(c, ID_APARTMENT)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
+		}
+
+		idPayment, err := utils.GetParam(c, ID_PAYMENT)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
+		}
+
+		// Validate apartment
+		err = residentService.ValidateApartmentSU(idBuilding, idCondominium, idApartment)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, "Error "+err.Error(), nil)
 		}
 
 		input := new(PaymentInput)
-		if err := c.BodyParser(input); err != nil {
-			log.Debug("Error parsing input:", err)
-			return utils.HandleResponse(c, fiber.StatusBadRequest, "Invalid request", err.Error())
+		err = utils.HandlerValidation(c, input)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, err.Error(), nil)
 		}
 
-		payment, err := paymentService.UpdatePayment(uint(id), input.Amount, input.Date, input.ResidentID)
+		input.ID = uint(idPayment)
+		payment := MapPaymentInputToModel(input)
+
+		//input.ResidentID
+		err = paymentService.UpdatePayment(payment)
 		if err != nil {
 			log.Debug("Error updating payment:", err)
 			return utils.HandleResponse(c, fiber.StatusInternalServerError, "Could not update payment", err.Error())
@@ -91,14 +183,36 @@ func UpdatePaymentHandler(paymentService service.PaymentService) fiber.Handler {
 }
 
 // DeletePaymentHandler maneja la eliminación de un pago
-func DeletePaymentHandler(paymentService service.PaymentService) fiber.Handler {
+func DeletePaymentHandler(paymentService service.PaymentService, residentService service.ResidentService) fiber.Handler {
 	return func(c *fiber.Ctx) error {
-		id, err := c.ParamsInt("id")
+		// GET ID FROM URL condominium
+		idCondominium, err := utils.GetParam(c, ID_CONDOMINIUM)
 		if err != nil {
-			return utils.HandleResponse(c, fiber.StatusBadRequest, "Invalid payment ID", err.Error())
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
 		}
 
-		if err := paymentService.DeletePayment(uint(id)); err != nil {
+		// GET ID FROM URL building
+		idBuilding, err := utils.GetParam(c, ID_BUILDING)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
+		}
+
+		idApartment, err := utils.GetParam(c, ID_APARTMENT)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
+		}
+
+		idPayment, err := utils.GetParam(c, ID_PAYMENT)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, utils.MsgErrorParsingID, err.Error())
+		}
+
+		// Validate apartment
+		err = residentService.ValidateApartmentSU(idBuilding, idCondominium, idApartment)
+		if err != nil {
+			return utils.HandleResponse(c, fiber.StatusBadRequest, "Error "+err.Error(), nil)
+		}
+		if err := paymentService.DeletePayment(uint(idPayment)); err != nil {
 			log.Debug("Error deleting payment:", err)
 			return utils.HandleResponse(c, fiber.StatusInternalServerError, "Could not delete payment", err.Error())
 		}
