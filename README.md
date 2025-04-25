@@ -1,14 +1,39 @@
----
-title: CRUD + JWT
-keywords: [auth, jwt, gorm, fiber]
-description: Simple JWT authentication.
+# Condominio App
+
+**Condominio App** es una aplicación para la gestión de condominios, que incluye funcionalidades como cuotas de mantenimiento, servicios comunes, pagos, y más.
+
+## Tabla de Contenidos
+- [Tecnologías Usadas](#tecnologías-usadas)
+- [Requisitos](#requisitos)
+- [Instalación](#instalación)
+- [Variables de Entorno](#variables-de-entorno)
+- [Comandos Disponibles](#comandos-disponibles)
+- [Estructura del Proyecto](#estructura-del-proyecto)
+  - [Cuotas de Mantenimiento](#cuotas-de-mantenimiento)
+  - [Servicios Comunes](#servicios-comunes)
+  - [Pagos](#pagos)
+- [Contribuciones](#contribuciones)
+- [Licencia](#licencia)
+
 ---
 
-## Archivos Principales
+## Tecnologías Usadas
 
-- `main.go`: Punto de entrada de la aplicación. Configura las rutas y arranca el servidor.
-- `cmd/api/v0/info/handlers.go`: Contiene el handler para la ruta de información del servicio.
-- `cmd/api/v0/info/info.go`: Define las estructuras de datos y funciones relacionadas con la información del servicio.
+Este proyecto utiliza las siguientes tecnologías:
+
+- Golang
+- PostgreSQL
+- Docker
+
+---
+
+## Requisitos
+
+- Tener instalado Docker y Docker Compose.
+- Tener instalado Go (versión 1.18 o superior).
+- Acceso a una terminal o línea de comandos.
+
+---
 
 ## Instalación
 
@@ -23,8 +48,11 @@ description: Simple JWT authentication.
     go mod tidy
     ```
 
+---
+
 ## Uso
 
+### Paso 1: Ejecutar el servicio localmente
 Para ejecutar el servicio, utiliza el siguiente comando:
 
 ```sh
@@ -55,3 +83,38 @@ docker build -t crud-app .
 Ejecutar el contenedor Docker:
 
 docker run -p 8080:8080 crud-app
+```
+
+---
+## Variables de Entorno
+Asegúrate de configurar las siguientes variables de entorno antes de ejecutar la aplicación:
+
+```sh
+DB_HOST: Host de la base de datos.
+DB_USER: Usuario de la base de datos.
+DB_PASSWORD: Contraseña de la base de datos.
+DB_NAME: Nombre de la base de datos.
+```
+
+
+## Comandos Disponibles
+```sh
+go run main.go: #Ejecuta la aplicación localmente.
+
+go mod tidy: #Limpia y organiza las dependencias.
+docker build -t condominio-app .: #Construye la imagen Docker.
+docker run -p 8080:8080 condominio-app: #Ejecuta la aplicación en un contenedor Docker.
+
+```
+
+## Contribuciones
+
+¡Las contribuciones son bienvenidas! Si deseas contribuir, por favor sigue estos pasos:
+
+1. Haz un fork del repositorio.
+2. Crea una rama para tu funcionalidad (`git checkout -b feature/nueva-funcionalidad`).
+3. Realiza tus cambios y haz un commit (`git commit -m 'Agrega nueva funcionalidad'`).
+4. Haz un push a tu rama (`git push origin feature/nueva-funcionalidad`).
+5. Abre un Pull Request.
+
+---
